@@ -3,6 +3,7 @@ plugins {
     id 'idea'
     id 'maven-publish'
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'org.spongepowered.mixin' version '0.7.38'
 }
 
 version = mod_version
@@ -14,6 +15,13 @@ base {
 
 // Mojang ships Java 17 to end users in 1.18+, so your mod should target Java 17.
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+// This mod ships no mixins of its own — the VS/Immersive Portals conflict is resolved by a
+// MixinSquared MixinCanceller service, not by injecting. The mixin plugin/refmap are kept ready
+// for the planned render-pipeline bridge; with zero @Mixin classes the refmap is simply empty.
+mixin {
+    add sourceSets.main, "valkyrienportals.refmap.json"
+}
 
 println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
 minecraft {
@@ -112,14 +120,9 @@ minecraft {
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
-    // Put repositories for dependencies here
-    // ForgeGradle automatically adds the Forge maven and Maven Central for you
-
-    // If you have mod jar dependencies in ./libs, you can declare them as a repository like so.
-    // See https://docs.gradle.org/current/userguide/declaring_repositories.html#sub:flat_dir_resolver
-    // flatDir {
-    //     dir 'libs'
-    // }
+    flatDir {
+        dirs "C:/Users/Bulkl/curseforge/minecraft/Instances/Base wars/mods"
+    }
 }
 
 dependencies {
@@ -130,20 +133,16 @@ dependencies {
     // then special handling is done to allow a setup of a vanilla dependency without the use of an external repository.
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
-    // Example mod dependency with JEI - using fg.deobf() ensures the dependency is remapped to your development mappings
-    // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
-    // compileOnly fg.deobf("mezz.jei:jei-${mc_version}-common-api:${jei_version}")
-    // compileOnly fg.deobf("mezz.jei:jei-${mc_version}-forge-api:${jei_version}")
-    // runtimeOnly fg.deobf("mezz.jei:jei-${mc_version}-forge:${jei_version}")
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
-    // Example mod dependency using a mod jar from ./libs with a flat dir repository
-    // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
-    // The group id is ignored when searching -- in this case, it is "blank"
-    // implementation fg.deobf("blank:coolmod-${mc_version}:${coolmod_version}")
+    // MixinSquared supplies the MixinCanceller API we implement. Compile-only: the runtime copy is
+    // provided in-pack (Supplementaries jar-in-jars it; it loads as a game library). The vendored
+    // jar here is the API only and is never bundled into our output.
+    compileOnly files("libs/MixinSquared-0.1.1.jar")
 
-    // For more info:
-    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
-    // http://www.gradle.org/docs/current/userguide/dependency_management.html
+    // Dev-only: local mod jars for runClient testing (no deobf — mixin phase only).
+    runtimeOnly files("C:/Users/Bulkl/curseforge/minecraft/Instances/Base wars/mods/valkyrienskies-120-2.4.11.jar")
+    runtimeOnly files("C:/Users/Bulkl/curseforge/minecraft/Instances/Base wars/mods/immersive-portals-3.0.8-all.jar")
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
