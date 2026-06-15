@@ -1,0 +1,16 @@
+{
+    "required": true,
+    "minVersion": "0.8",
+    "package": "com.valkyrienportals.mixin",
+    "compatibilityLevel": "JAVA_17",
+    "refmap": "valkyrienportals.refmap.json",
+    "client": [
+        "client.MixinTransformationManager",
+        "client.MixinPortalRenderer",
+        "client.MixinGameRendererPortalCamera",
+        "client.LevelRendererPrepareCullFrustumInvoker"
+    ],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}
