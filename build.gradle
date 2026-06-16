@@ -156,6 +156,10 @@ dependencies {
     // by the modpack, so nothing here is bundled into our output.
     compileOnly files("C:/Users/Bulkl/curseforge/minecraft/Instances/Base wars/mods/valkyrienskies-120-2.4.11.jar")
     compileOnly files("C:/Users/Bulkl/curseforge/minecraft/Instances/Base wars/mods/immersive-portals-3.0.8-all.jar")
+    // Embeddium IS the active Sodium implementation in this pack (it keeps the me.jellysquid.mods.sodium
+    // package); VS's getVSRenderer() resolves to SODIUM against it, so SodiumCompat/RenderSectionManager
+    // are the live ship-render path. Compile-only against the in-pack jar to mixin into that path.
+    compileOnly files("C:/Users/Bulkl/curseforge/minecraft/Instances/Base wars/mods/embeddium-0.3.31+mc1.20.1.jar")
     // VS's core API (ClientShip, ShipTransform) ships as a jar-in-jar, invisible to the outer jar's
     // compile classpath — vendor it explicitly so those types resolve.
     compileOnly files("libs/vs-api-1.1.0.jar")

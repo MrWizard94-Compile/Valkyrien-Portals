@@ -5,10 +5,9 @@
     "compatibilityLevel": "JAVA_17",
     "refmap": "valkyrienportals.refmap.json",
     "client": [
-        "client.MixinTransformationManager",
-        "client.MixinPortalRenderer",
         "client.MixinGameRendererPortalCamera",
-        "client.LevelRendererPrepareCullFrustumInvoker"
+        "client.LevelRendererPrepareCullFrustumInvoker",
+        "client.MixinRenderSectionManagerPortalFog"
     ],
     "injectors": {
         "defaultRequire": 1
