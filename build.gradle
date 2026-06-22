@@ -163,6 +163,11 @@ dependencies {
     // VS's core API (ClientShip, ShipTransform) ships as a jar-in-jar, invisible to the outer jar's
     // compile classpath — vendor it explicitly so those types resolve.
     compileOnly files("libs/vs-api-1.1.0.jar")
+    // VS's client API returns Kotlin read-only collections (e.g. getShipObjectWorld(mc).getLoadedShips());
+    // resolving their supertypes (KMappedMarker) needs the Kotlin stdlib on the compile classpath.
+    // Kotlin-for-Forge bundles it and supplies it at runtime, so this stays compile-only. Retained for the
+    // remote-dimension ship-loading work (the real fix for ships-through-portals; see KNOWN_ISSUES).
+    compileOnly files("C:/Users/Bulkl/curseforge/minecraft/Instances/Base wars/mods/kotlinforforge-4.12.0-all.jar")
 
     // Dev-only: local mod jars for runClient testing (no deobf — mixin phase only).
     runtimeOnly files("C:/Users/Bulkl/curseforge/minecraft/Instances/Base wars/mods/valkyrienskies-120-2.4.11.jar")

@@ -4,10 +4,14 @@
     "package": "com.valkyrienportals.mixin",
     "compatibilityLevel": "JAVA_17",
     "refmap": "valkyrienportals.refmap.json",
+    "mixins": [
+        "common.MixinEntityDragger"
+    ],
     "client": [
         "client.MixinGameRendererPortalCamera",
         "client.LevelRendererPrepareCullFrustumInvoker",
-        "client.MixinRenderSectionManagerPortalFog"
+        "client.MixinRenderSectionManagerPortalFog",
+        "client.MixinValkyrienSkiesModShipUnloadGuard"
     ],
     "injectors": {
         "defaultRequire": 1
