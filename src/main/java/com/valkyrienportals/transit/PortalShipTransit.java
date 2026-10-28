@@ -2,8 +2,10 @@ package com.valkyrienportals.transit;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.mojang.logging.LogUtils;
@@ -39,26 +41,32 @@ import qouteall.q_misc_util.my_util.DQuaternion;
  * teleports them through it, transforming the ship's transform <em>and its momentum</em> by the portal's
  * rotation so the craft arrives oriented and moving rather than dead or sideways.
  *
+ * <p>{@code transformPoint} places the ship right at the linked exit portal, so a naive timer cooldown lets
+ * the ship ping-pong straight back — and the rapid re-teleport fires client ship-create packets faster than
+ * the client can unload the ship from the previous dimension ("Received ship create packet for already
+ * loaded ship?!"), which makes the ship's blocks fail to materialise and vanish. Instead each ship is
+ * <em>disarmed</em> the moment it transits and only re-armed once it has cleared every portal — one transit
+ * per approach, no bounce.
+ *
  * <p>Plain Forge {@code ServerTickEvent} subscriber — no mixin, auto-registered via
- * {@code @Mod.EventBusSubscriber}. A short per-ship cooldown stops the craft from bouncing back through the
- * exit portal. While the feature is in development it logs {@code [VP-TRANSIT]} diagnostics so misfires can
- * be diagnosed from the server log.
+ * {@code @Mod.EventBusSubscriber}.
  */
 @Mod.EventBusSubscriber(modid = "valkyrienportals", bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class PortalShipTransit {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** How close (blocks) the ship centre must be to the portal surface to transit. */
+    /** Ship-centre distance (blocks) to the portal surface that triggers a transit. */
     private static final double TRANSIT_DISTANCE = 4.0;
+    /** A disarmed ship re-arms once it is at least this far (blocks) from every portal. */
+    private static final double REARM_DISTANCE = 6.0;
     /** Search radius (blocks) for nearby portals around a ship. */
     private static final double SEARCH_RANGE = 8.0;
-    /** Ticks a ship is immune to re-transit after teleporting (prevents bounce-back). */
-    private static final int COOLDOWN_TICKS = 60;
     /** Heartbeat log interval (ticks). */
-    private static final int HEARTBEAT_TICKS = 40;
+    private static final int HEARTBEAT_TICKS = 100;
 
-    private static final Map<Long, Integer> COOLDOWNS = new HashMap<>();
+    /** Ship ids that have transited and have not yet cleared the exit portal (must not re-transit). */
+    private static final Set<Long> DISARMED = new HashSet<>();
     private static int heartbeat;
 
     private PortalShipTransit() {}
@@ -73,12 +81,6 @@ public final class PortalShipTransit {
             return;
         }
 
-        COOLDOWNS.entrySet().removeIf(entry -> {
-            final int remaining = entry.getValue() - 1;
-            entry.setValue(remaining);
-            return remaining <= 0;
-        });
-
         final Map<String, ServerLevel> levelsByDim = new HashMap<>();
         for (final ServerLevel level : server.getAllLevels()) {
             levelsByDim.put(VSGameUtilsKt.getDimensionId(level), level);
@@ -90,14 +92,11 @@ public final class PortalShipTransit {
 
         if (++heartbeat >= HEARTBEAT_TICKS) {
             heartbeat = 0;
-            LOGGER.info("[VP-TRANSIT] alive: loadedShips={}", ships.size());
+            LOGGER.info("[VP-TRANSIT] alive: loadedShips={} disarmed={}", ships.size(), DISARMED.size());
         }
 
         for (final LoadedServerShip ship : ships) {
             final long shipId = ship.getId();
-            if (COOLDOWNS.containsKey(shipId)) {
-                continue;
-            }
             final ServerLevel level = levelsByDim.get(ship.getChunkClaimDimension());
             if (level == null) {
                 continue;
@@ -109,6 +108,7 @@ public final class PortalShipTransit {
             final List<Portal> nearby = IPMcHelper.getNearbyPortals(level, shipPos, SEARCH_RANGE)
                 .collect(Collectors.toList());
             if (nearby.isEmpty()) {
+                DISARMED.remove(shipId); // clear of all portals — ready to transit again
                 continue;
             }
 
@@ -122,28 +122,26 @@ public final class PortalShipTransit {
                 }
             }
 
-            final boolean transitable = nearest != null && nearest.getDestDim() != null
-                && nearestDist <= TRANSIT_DISTANCE;
-            LOGGER.info("[VP-TRANSIT] ship={} dim={} pos=({}, {}, {}) portalsNear={} nearestDist={} destDim={} willTransit={}",
-                shipId, ship.getChunkClaimDimension(),
-                String.format("%.1f", shipPos.x), String.format("%.1f", shipPos.y), String.format("%.1f", shipPos.z),
-                nearby.size(), String.format("%.2f", nearestDist),
-                nearest == null ? "null" : nearest.getDestDim(), transitable);
-
-            if (!transitable) {
+            if (DISARMED.contains(shipId)) {
+                if (nearestDist > REARM_DISTANCE) {
+                    DISARMED.remove(shipId); // moved clear of the exit portal — re-arm
+                }
                 continue;
             }
 
+            if (nearest == null || nearest.getDestDim() == null || nearestDist > TRANSIT_DISTANCE) {
+                continue;
+            }
             final ServerLevel destLevel = server.getLevel(nearest.getDestDim());
             if (destLevel == null) {
-                LOGGER.warn("[VP-TRANSIT] ship={} destLevel for {} is not loaded; skipping", shipId, nearest.getDestDim());
                 continue;
             }
 
-            final ShipTeleportData data = buildTeleportData(ship, nearest, destLevel);
-            shipWorld.teleportShip(ship, data);
-            COOLDOWNS.put(shipId, COOLDOWN_TICKS);
-            LOGGER.info("[VP-TRANSIT] TELEPORTED ship={} to dim={}", shipId, VSGameUtilsKt.getDimensionId(destLevel));
+            shipWorld.teleportShip(ship, buildTeleportData(ship, nearest, destLevel));
+            DISARMED.add(shipId);
+            LOGGER.info("[VP-TRANSIT] TELEPORTED ship={} {} -> {} (dist={})",
+                shipId, ship.getChunkClaimDimension(), VSGameUtilsKt.getDimensionId(destLevel),
+                String.format("%.2f", nearestDist));
         }
     }
 
